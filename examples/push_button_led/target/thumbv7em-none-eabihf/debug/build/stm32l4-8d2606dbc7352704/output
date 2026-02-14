@@ -1,0 +1,3 @@
+cargo:rustc-link-search=/home/jonatan/RUST/RUST-AND-STM32/examples/push_button_led/target/thumbv7em-none-eabihf/debug/build/stm32l4-8d2606dbc7352704/out
+cargo:rerun-if-changed=src/stm32l4x6/device.x
+cargo:rerun-if-changed=build.rs
