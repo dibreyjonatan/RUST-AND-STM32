@@ -1,0 +1,18 @@
+[package]
+name = "push_button_led"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+panic-halt = "0.2"
+
+[dependencies.stm32l4]
+version = "0.15"
+features = ["stm32l4x6", "rt"]
+
+[profile.release]
+opt-level = "z"
+lto = true
