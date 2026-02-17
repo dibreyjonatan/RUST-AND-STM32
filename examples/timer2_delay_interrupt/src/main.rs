@@ -1,9 +1,18 @@
 #! [no_std]
 #! [no_main]
 
+use cortex_m::interrupt::Mutex ;
+use core::cell::RefCell ;
 use cortex_m_rt::entry ;  //utilisation de la fonction entry qui definit le debut d'execution du code 
 use stm32l4::stm32l4x6 ;
 use panic_halt as _ ; 
+
+
+// creation de 2 variables globales
+ // Variable du timer 
+ static TIM2_PER : Mutex<RefCell<Option<stm32l4x6::Peripherals>>>=Mutex::new(RefCell::new(None));
+ // Variable du countdown 
+  static TIM2_COUNT : Mutex<RefCell<Option<u64>>>=Mutex::new(RefCell::new(None));
 #[entry]
 
 fn main() ->! {
@@ -24,8 +33,26 @@ fn main() ->! {
     // on va faire une interruption de 1ms, on a ARR ~ 31,25 donc 32
     per_handler.TIM2.psc.write(|w| unsafe{w.bits(127)});
     per_handler.TIM2.arr.write(|w| w.bits(32)) ;
-    per_handler.TIM2.cr1.write(|w| w.cen().set_bit());
+   
     
+    // Configuration de l'interruption TIM2
+    //ACtivation de l'interruption 
+    per_handler.TIM2.dier.modify(|_,w| w.uie().set_bit());
+    // Enregistrement du Timer2 au niveau du NVIC
+    unsafe{ cortex_m::peripheral::NVIC::unmask(stm32l4x6::interrupt::TIM2)}
+    // On donne au tim2 une priorité de 2
+    // Pour cela il faut acceder aux coeur du processeur et y modifier sa priorité
+    let mut core_p = cortex_m::peripheral::Peripherals::take().unwrap();
+    unsafe {
+        core_p.NVIC.set_priority(stm32l4x6::interrupt::TIM2, 2);
+    }
+    //Activation du timer2
+     per_handler.TIM2.cr1.write(|w| w.cen().set_bit());
+    
+     // Deplacement de la variable timer2 dans le context globale
+     cortex_m::interrupt::free(|cs| {
+        TIM2_PER.borrow(cs).replace(Some(per_handler));
+    }); 
     loop {
 
     }
