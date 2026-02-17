@@ -6,13 +6,32 @@ use core::cell::RefCell ;
 use cortex_m_rt::entry ;  //utilisation de la fonction entry qui definit le debut d'execution du code 
 use stm32l4::stm32l4x6 ;
 use panic_halt as _ ; 
+use cortex_m::interrupt::InterruptNumber;
 
+use stm32l4::stm32l4x6::interrupt;
+use core::cell::Cell;
 
 // creation de 2 variables globales
  // Variable du timer 
  static TIM2_PER : Mutex<RefCell<Option<stm32l4x6::Peripherals>>>=Mutex::new(RefCell::new(None));
  // Variable du countdown 
-  static TIM2_COUNT : Mutex<RefCell<Option<u64>>>=Mutex::new(RefCell::new(None));
+// static TIM2_COUNT : Mutex<RefCell<Option<u32>>>=Mutex::new(RefCell::new(None));
+
+ static COUNTER: Mutex<Cell<u32>> = Mutex::new(Cell::new(0));
+  // On utilise ici un paramètre générique contraint par le type InterruptNumber
+  // J'ai eu ce type sur le site. 
+  fn delay_ms<T: InterruptNumber>(interrupt:T, count : u32){
+     
+    //je mets la valeur à count
+      cortex_m::interrupt::free(|cs|
+                COUNTER.borrow(cs).set(COUNTER.borrow(cs).get() + count));
+     //activation de l'interruption
+      unsafe{ cortex_m::peripheral::NVIC::mask(interrupt)}
+     //on reste tant que count >0 
+    while  cortex_m::interrupt::free(|cs| COUNTER.borrow(cs).get() ) >=0 {}
+     //desactivation de l'interruption
+      unsafe{ cortex_m::peripheral::NVIC::unmask(interrupt)}
+}
 #[entry]
 
 fn main() ->! {
@@ -54,7 +73,7 @@ fn main() ->! {
         TIM2_PER.borrow(cs).replace(Some(per_handler));
     }); 
     loop {
-
+          delay_ms(stm32l4x6::interrupt::TIM2, 1000); 
     }
 
 }
