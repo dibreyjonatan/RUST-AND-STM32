@@ -1,0 +1,1 @@
+/home/jonatan/RUST/RUST-AND-STM32/examples/timer2_delay_interrupt/target/thumbv7em-none-eabihf/release/timer2_delay_interrupt: /home/jonatan/RUST/RUST-AND-STM32/examples/timer2_delay_interrupt/src/main.rs
