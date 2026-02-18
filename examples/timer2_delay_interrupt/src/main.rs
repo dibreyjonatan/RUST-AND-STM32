@@ -6,7 +6,7 @@ use core::cell::RefCell ;
 use cortex_m_rt::entry ;  //utilisation de la fonction entry qui definit le debut d'execution du code 
 use stm32l4::stm32l4x6 ;
 use panic_halt as _ ; 
-use cortex_m::interrupt::InterruptNumber;
+
 
 use stm32l4::stm32l4x6::interrupt;
 use core::cell::Cell;
@@ -15,22 +15,43 @@ use core::cell::Cell;
  // Variable du timer 
  static TIM2_PER : Mutex<RefCell<Option<stm32l4x6::Peripherals>>>=Mutex::new(RefCell::new(None));
  // Variable du countdown 
-// static TIM2_COUNT : Mutex<RefCell<Option<u32>>>=Mutex::new(RefCell::new(None));
-
  static COUNTER: Mutex<Cell<u32>> = Mutex::new(Cell::new(0));
-  // On utilise ici un paramètre générique contraint par le type InterruptNumber
-  // J'ai eu ce type sur le site. 
-  fn delay_ms<T: InterruptNumber>(interrupt:T, count : u32){
-     
+  
+  fn delay_ms(count : u32){
+     if count !=0 { //travaillé si t > 0 
+     // activer le timer2 dans le delai 
+    cortex_m::interrupt::free(|cs| {
+          let mut interrupt_peripheral=TIM2_PER.borrow(cs).borrow_mut();
+        interrupt_peripheral.as_mut().unwrap().TIM2.cr1.modify(|_,w| w.cen().set_bit());
+    });
     //je mets la valeur à count
       cortex_m::interrupt::free(|cs|
-                COUNTER.borrow(cs).set(COUNTER.borrow(cs).get() + count));
-     //activation de l'interruption
-      unsafe{ cortex_m::peripheral::NVIC::mask(interrupt)}
-     //on reste tant que count >0 
-    while  cortex_m::interrupt::free(|cs| COUNTER.borrow(cs).get() ) >=0 {}
-     //desactivation de l'interruption
-      unsafe{ cortex_m::peripheral::NVIC::unmask(interrupt)}
+                COUNTER.borrow(cs).set(count));
+   
+    while  cortex_m::interrupt::free(|cs| COUNTER.borrow(cs).get() ) > 0 {
+         cortex_m::asm::wfi();
+    }
+   //desactiver le timer2 à la sortie
+    cortex_m::interrupt::free(|cs| {
+          let mut interrupt_peripheral=TIM2_PER.borrow(cs).borrow_mut();
+        interrupt_peripheral.as_mut().unwrap().TIM2.cr1.modify(|_,w| w.cen().clear_bit());
+    }) ;
+}
+}
+#[interrupt]
+fn TIM2(){
+     
+    cortex_m::interrupt::free(|cs| {
+        
+        //on decremente la valeur du compteur 
+        let current = COUNTER.borrow(cs).get();
+        if current > 0 {
+        COUNTER.borrow(cs).set(current - 1);
+        }
+        // l'état du bit est mise à 1 par le hardware, on le met à zero par software
+        let mut interrupt_peripheral=TIM2_PER.borrow(cs).borrow_mut();
+        interrupt_peripheral.as_mut().unwrap().TIM2.sr.modify(|_,w| w.uif().clear_bit());
+    });
 }
 #[entry]
 
@@ -40,11 +61,13 @@ fn main() ->! {
     // frequence interne 4MHz
     let per_handler= stm32l4x6::Peripherals::take().unwrap() ;
     //configuration de la led PA5 
-    per_handler.RCC.ahb2enr.write(|w| w.gpioaen().set_bit());
+   
+      //activation de l'horloge 
+    per_handler.RCC.ahb2enr.modify(|_, w| w.gpioaen().set_bit());
     per_handler.GPIOA.moder.write(|w| w.moder5().output());
+
     //configuration du timer2 
-    //activation de l'horloge 
-    per_handler.RCC.apb1enr1.write(|w| w.tim2en().set_bit());
+    per_handler.RCC.apb1enr1.modify(|_, w| w.tim2en().set_bit());
     //mise à 0 du compteur
     per_handler.TIM2.cnt.write(|w| {w.bits(0)}) ;
     //pour avoir une seconde  T=(1+PSC)(1+ARR)/f  f=4MHz
@@ -53,7 +76,6 @@ fn main() ->! {
     per_handler.TIM2.psc.write(|w| unsafe{w.bits(127)});
     per_handler.TIM2.arr.write(|w| w.bits(32)) ;
    
-    
     // Configuration de l'interruption TIM2
     //ACtivation de l'interruption 
     per_handler.TIM2.dier.modify(|_,w| w.uie().set_bit());
@@ -65,15 +87,34 @@ fn main() ->! {
     unsafe {
         core_p.NVIC.set_priority(stm32l4x6::interrupt::TIM2, 2);
     }
+    //cette ligne a été commenter car on ne veut activer le timer uniquement dans le delai 
     //Activation du timer2
-     per_handler.TIM2.cr1.write(|w| w.cen().set_bit());
+     //per_handler.TIM2.cr1.write(|w| w.cen().set_bit());
     
      // Deplacement de la variable timer2 dans le context globale
      cortex_m::interrupt::free(|cs| {
         TIM2_PER.borrow(cs).replace(Some(per_handler));
     }); 
     loop {
-          delay_ms(stm32l4x6::interrupt::TIM2, 1000); 
+        
+        // on n'accède aux peripherique que en utilisant RfCell
+        cortex_m::interrupt::free(|cs| {
+        
+        let mut per=TIM2_PER.borrow(cs).borrow_mut();
+        per.as_mut().unwrap().GPIOA.bsrr.write(|w| w.bs5().set_bit()) ;
+        });
+
+
+           delay_ms(1000); 
+        
+          
+        cortex_m::interrupt::free(|cs| {
+        
+        let mut per=TIM2_PER.borrow(cs).borrow_mut();
+        per.as_mut().unwrap().GPIOA.bsrr.write(|w| unsafe { w.bits(1 << 21) });
+        });
+         delay_ms(1000); 
+
     }
 
 }
