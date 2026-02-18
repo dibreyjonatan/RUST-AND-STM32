@@ -1,0 +1,1 @@
+/home/jonatan/RUST/RUST-AND-STM32/examples/usart_recieve_pc_interrupt/target/thumbv7em-none-eabihf/release/usart_recieve_pc_interrupt: /home/jonatan/RUST/RUST-AND-STM32/examples/usart_recieve_pc_interrupt/src/main.rs
