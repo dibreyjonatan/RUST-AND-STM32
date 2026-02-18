@@ -14,7 +14,9 @@ use core::cell::Cell;
 
 static GLOBAL_PER : Mutex<RefCell<Option<stm32l4x6::Peripherals>>>=Mutex::new(RefCell::new(None));
 static VALUE: Mutex<Cell<u32>> = Mutex::new(Cell::new(0));
-
+static STATE: Mutex<Cell<u32>> = Mutex::new(Cell::new(0));
+use heapless::String;
+use core::fmt::Write;
 // Fonction helper pour envoyer une string entière
 fn usart_send_str(usart: &stm32l4x6::USART3, s: &str) {
     for byte in s.bytes() {
@@ -31,6 +33,23 @@ fn usart_send_str(usart: &stm32l4x6::USART3, s: &str) {
     
 }
 
+#[interrupt]
+fn USART3(){
+
+ cortex_m::interrupt::free(|cs| {
+        
+        let mut per= GLOBAL_PER.borrow(cs).borrow_mut();
+        // Check if PA13 caused the interrupt
+        if per.as_mut().unwrap().USART3.isr.read().rxne().bit() {
+            let mut val = per.as_mut().unwrap().USART3.rdr.read().bits() ;
+                val = val & 0xFF  -('\0' as u32) ;
+                VALUE.borrow(cs).set(val);  
+                STATE.borrow(cs).set(1) ;
+        }
+    });
+
+
+}
 #[entry]
 fn main()-> ! {
     //faire un programme usart, où l'usart communique avec le PC 
@@ -85,7 +104,17 @@ fn main()-> ! {
 
     loop { 
 
- 
+       cortex_m::interrupt::free(|cs| {
+        
+         let state=STATE.borrow(cs) ;
+         if state.get() == 1 {
+              let mut message: String<64> = String::new();
+              write!(message, "THE VALUE YOU SENT IS : {}", VALUE.borrow(cs).get()).ok();
+              
+             state.set(0) ; 
+         }
+         
+        });
         
    }
   
