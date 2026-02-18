@@ -1,3 +1,0 @@
-cargo:rustc-link-search=/home/jonatan/RUST/RUST-AND-STM32/examples/usart_recieve_pc_interrupt/target/thumbv7em-none-eabihf/release/build/stm32l4-32b9f62390bea442/out
-cargo:rerun-if-changed=src/stm32l4x6/device.x
-cargo:rerun-if-changed=build.rs
