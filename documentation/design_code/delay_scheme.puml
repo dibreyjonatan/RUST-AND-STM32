@@ -1,0 +1,22 @@
+@startuml
+skinparam style strictuml
+
+[*] -> main 
+
+state main : Do(Configurations)
+
+main--> loop
+
+loop -left-> delay_ms : wait 
+state "<b> delay ms </b> \n<i> Takes as parameter </i> \n <i> the number of milliseconds to wait </i>" as delay_ms : Launch Timer,\n set count to value passed, \n wait till value go down to 0 
+delay_ms -->Timer : Launch Timer
+state "<b> Timer interrupt</b> \n<i>Decrement the countdown value by 1 after every 1ms  </i>" as Timer  : Decrement count by 1, \n set status flag to 0
+Timer --> Timer : countdown 
+Timer --> delay_ms : Timeout 
+
+delay_ms-right-> loop : end_wait 
+loop--> loop : True 
+
+state loop : run
+
+@enduml 
