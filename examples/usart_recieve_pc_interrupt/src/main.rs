@@ -5,6 +5,16 @@ use cortex_m_rt::entry ;
 use stm32l4::stm32l4x6 ;
 use panic_halt as _ ; 
 
+use cortex_m::interrupt::Mutex ;
+use core::cell::RefCell ;
+
+
+use stm32l4::stm32l4x6::interrupt;
+use core::cell::Cell;
+
+static GLOBAL_PER : Mutex<RefCell<Option<stm32l4x6::Peripherals>>>=Mutex::new(RefCell::new(None));
+static VALUE: Mutex<Cell<u32>> = Mutex::new(Cell::new(0));
+
 // Fonction helper pour envoyer une string entière
 fn usart_send_str(usart: &stm32l4x6::USART3, s: &str) {
     for byte in s.bytes() {
@@ -51,10 +61,28 @@ fn main()-> ! {
     //per_handler.USART3.brr.write(|w| unsafe{w.bits(4000000/19200)}) ;
     per_handler.USART3.brr.write(|w| unsafe { w.bits(4_000_000 / 115_200) });
     per_handler.USART3.cr1.modify(|_, w| {
-    w.ue().set_bit()  // active l'USART
-     .te().set_bit()  // active TE
+    //w.ue().set_bit()  // active l'USART
+     w.te().set_bit()  // active TE
+     .re().set_bit()  // activation de la reception RE
+     .rxneie().set_bit() // activation de l'interruption de reception RXNEIE
     });
     
+    // configuration NVIC pour l'interruption USART3
+    unsafe{ cortex_m::peripheral::NVIC::unmask(stm32l4x6::interrupt::USART3)}
+    // Definition du niveau de priorité
+     let mut core_p = cortex_m::peripheral::Peripherals::take().unwrap();
+    unsafe {
+        core_p.NVIC.set_priority(stm32l4x6::interrupt::USART3,1);
+    }
+    //Activation de l'usart 
+    per_handler.USART3.cr1.modify(|_, w| {
+    w.ue().set_bit()  // active l'USART
+    });
+    // Transfer de la variable peripherique dans le context gloable
+     cortex_m::interrupt::free(|cs| {
+        GLOBAL_PER.borrow(cs).replace(Some(per_handler));
+    }); 
+
     loop { 
 
  
